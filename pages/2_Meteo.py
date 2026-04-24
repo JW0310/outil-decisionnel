@@ -1,130 +1,155 @@
+# === IMPORT DES LIBRAIRIES ===
+# streamlit : interface web
+# pandas : manipulation des données
+# plotly : visualisation interactive
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+
+# === CONFIGURATION DE LA PAGE ===
 st.set_page_config(page_title="Météo", layout="wide")
 
 st.title("🌤️ Analyse météo")
 
-# =====================
-# DATA
-# =====================
+
+# === CHARGEMENT DES DONNÉES ===
 df = pd.read_parquet("data/processed/fact_meteo.parquet")
 
-mapping = {
-    "75056": "Paris",
-    "69123": "Lyon"
-}
 
-df["ville"] = df["code_insee_commune"].astype(str).map(mapping)
-df = df.dropna(subset=["ville"]).copy()
-
+# =====================
+# PRÉPARATION DES DONNÉES
+# =====================
 ordre_mois = [
     "2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06",
     "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12"
 ]
-df["annee_mois"] = pd.Categorical(df["annee_mois"], categories=ordre_mois, ordered=True)
+
+df["annee_mois"] = pd.Categorical(
+    df["annee_mois"],
+    categories=ordre_mois,
+    ordered=True
+)
+
 df = df.sort_values("annee_mois")
 
-df_lyon = df[df["ville"] == "Lyon"].copy()
-df_paris = df[df["ville"] == "Paris"].copy()
+
+# =====================
+# SÉLECTION DES VILLES
+# =====================
+villes = sorted(df["nom_commune"].dropna().unique())
+
+col_select1, col_select2 = st.columns(2)
+
+with col_select1:
+    ville1 = st.selectbox("Ville 1", villes, index=0)
+
+with col_select2:
+    ville2 = st.selectbox("Ville 2", villes, index=1)
+
+df = df[df["nom_commune"].isin([ville1, ville2])].copy()
+
+df_ville1 = df[df["nom_commune"] == ville1].copy()
+df_ville2 = df[df["nom_commune"] == ville2].copy()
+
+st.markdown(f"### Analyse comparative : **{ville1}** vs **{ville2}**")
+
 
 # =====================
 # KPI
 # =====================
-st.subheader("📌 Indicateurs météo clés")
+st.subheader("Indicateurs météo clés")
 
-temp_moy_lyon = round(df_lyon["temperature_moyenne"].mean(), 1)
-temp_moy_paris = round(df_paris["temperature_moyenne"].mean(), 1)
+temp_moy_v1 = round(df_ville1["temperature_moyenne"].mean(), 1)
+temp_moy_v2 = round(df_ville2["temperature_moyenne"].mean(), 1)
 
-precip_total_lyon = int(round(df_lyon["precipitations"].sum(), 0))
-precip_total_paris = int(round(df_paris["precipitations"].sum(), 0))
+precip_v1 = int(round(df_ville1["precipitations"].sum(), 0))
+precip_v2 = int(round(df_ville2["precipitations"].sum(), 0))
 
-row_chaud_lyon = df_lyon.loc[df_lyon["temperature_moyenne"].idxmax()]
-row_chaud_paris = df_paris.loc[df_paris["temperature_moyenne"].idxmax()]
+row_v1 = df_ville1.loc[df_ville1["temperature_moyenne"].idxmax()]
+row_v2 = df_ville2.loc[df_ville2["temperature_moyenne"].idxmax()]
 
+
+# === FORMATAGE DES MOIS ===
 mois_labels = {
-    "01": "Janvier",
-    "02": "Février",
-    "03": "Mars",
-    "04": "Avril",
-    "05": "Mai",
-    "06": "Juin",
-    "07": "Juillet",
-    "08": "Août",
-    "09": "Septembre",
-    "10": "Octobre",
-    "11": "Novembre",
-    "12": "Décembre"
+    "01": "Janvier", "02": "Février", "03": "Mars",
+    "04": "Avril", "05": "Mai", "06": "Juin",
+    "07": "Juillet", "08": "Août", "09": "Septembre",
+    "10": "Octobre", "11": "Novembre", "12": "Décembre"
 }
 
 def format_mois_annee(valeur):
     annee, mois = str(valeur).split("-")
     return f"{mois_labels[mois]} {annee}"
 
-mois_chaud_lyon = format_mois_annee(row_chaud_lyon["annee_mois"])
-mois_chaud_paris = format_mois_annee(row_chaud_paris["annee_mois"])
+mois_v1 = format_mois_annee(row_v1["annee_mois"])
+mois_v2 = format_mois_annee(row_v2["annee_mois"])
 
-temp_mois_chaud_lyon = round(row_chaud_lyon["temperature_moyenne"], 1)
-temp_mois_chaud_paris = round(row_chaud_paris["temperature_moyenne"], 1)
+temp_v1_max = round(row_v1["temperature_moyenne"], 1)
+temp_v2_max = round(row_v2["temperature_moyenne"], 1)
 
+
+# === AFFICHAGE KPI ===
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("### 🏙️ Lyon")
-    kpi1, kpi2, kpi3 = st.columns(3)
-    kpi1.metric(
-        "Température annuelle",
-        f"{temp_moy_lyon} °C",
-        help="Moyenne des températures mensuelles sur l'année 2024."
+    st.markdown(f"#### {ville1}")
+    k1, k2, k3 = st.columns(3)
+
+    k1.metric(
+        "Temp. annuelle",
+        f"{temp_moy_v1} °C",
+        help="Moyenne des températures mensuelles sur l’année 2024."
     )
-    kpi2.metric(
-        "Mois le plus chaud",
-        mois_chaud_lyon,
-        delta=f"{temp_mois_chaud_lyon} °C",
-        help="Mois présentant la température moyenne mensuelle la plus élevée."
+    k2.metric(
+        "Mois le + chaud",
+        mois_v1,
+        delta=f"{temp_v1_max} °C",
+        help="Mois avec la température moyenne mensuelle la plus élevée."
     )
-    kpi3.metric(
-        "Précipitations annuelles",
-        f"{precip_total_lyon} mm",
-        help="Somme des précipitations mensuelles sur l'année 2024."
+    k3.metric(
+        "Pluie annuelle",
+        f"{precip_v1} mm",
+        help="Cumul des précipitations mensuelles sur l’année 2024."
     )
 
 with col2:
-    st.markdown("### 🏙️ Paris")
-    kpi1, kpi2, kpi3 = st.columns(3)
-    kpi1.metric(
-        "Température annuelle",
-        f"{temp_moy_paris} °C",
-        help="Moyenne des températures mensuelles sur l'année 2024."
+    st.markdown(f"#### {ville2}")
+    k1, k2, k3 = st.columns(3)
+
+    k1.metric(
+        "Temp. annuelle",
+        f"{temp_moy_v2} °C",
+        help="Moyenne des températures mensuelles sur l’année 2024."
     )
-    kpi2.metric(
-        "Mois le plus chaud",
-        mois_chaud_paris,
-        delta=f"{temp_mois_chaud_paris} °C",
-        help="Mois présentant la température moyenne mensuelle la plus élevée."
+    k2.metric(
+        "Mois le + chaud",
+        mois_v2,
+        delta=f"{temp_v2_max} °C",
+        help="Mois avec la température moyenne mensuelle la plus élevée."
     )
-    kpi3.metric(
-        "Précipitations annuelles",
-        f"{precip_total_paris} mm",
-        help="Somme des précipitations mensuelles sur l'année 2024."
+    k3.metric(
+        "Pluie annuelle",
+        f"{precip_v2} mm",
+        help="Cumul des précipitations mensuelles sur l’année 2024."
     )
 
+
 # =====================
-# BLOC 2 — TEMPERATURES
+# GRAPHIQUE TEMPÉRATURES
 # =====================
-st.subheader("🌡️ Évolution des températures moyennes mensuelles")
+st.subheader("Évolution des températures moyennes mensuelles")
 
 fig_temp = px.line(
     df,
     x="annee_mois",
     y="temperature_moyenne",
-    color="ville",
+    color="nom_commune",
     markers=True,
     labels={
         "annee_mois": "Mois",
         "temperature_moyenne": "Température moyenne (°C)",
-        "ville": "Ville"
+        "nom_commune": "Ville"
     }
 )
 
@@ -137,22 +162,23 @@ fig_temp.update_layout(
 
 st.plotly_chart(fig_temp, use_container_width=True)
 
+
 # =====================
-# BLOC 3 — PRECIPITATIONS
+# GRAPHIQUE PRÉCIPITATIONS
 # =====================
-st.subheader("🌧️ Comparaison des précipitations mensuelles")
+st.subheader("Comparaison des précipitations mensuelles")
 
 fig_precip = px.bar(
     df,
     x="annee_mois",
     y="precipitations",
-    color="ville",
+    color="nom_commune",
     text_auto=True,
     barmode="group",
     labels={
         "annee_mois": "Mois",
         "precipitations": "Précipitations (mm)",
-        "ville": "Ville"
+        "nom_commune": "Ville"
     }
 )
 
@@ -165,33 +191,30 @@ fig_precip.update_layout(
 
 st.plotly_chart(fig_precip, use_container_width=True)
 
-# =====================
-# BLOC 3 BIS — AMPLITUDE
-# =====================
-st.subheader("🌡️ Amplitude thermique annuelle")
 
-amp_lyon = round(
-    df_lyon["temperature_moyenne"].max() - df_lyon["temperature_moyenne"].min(), 1
+# =====================
+# AMPLITUDE THERMIQUE
+# =====================
+st.subheader("Amplitude thermique annuelle")
+
+amp_v1 = round(
+    df_ville1["temperature_moyenne"].max() - df_ville1["temperature_moyenne"].min(), 1
 )
-amp_paris = round(
-    df_paris["temperature_moyenne"].max() - df_paris["temperature_moyenne"].min(), 1
+amp_v2 = round(
+    df_ville2["temperature_moyenne"].max() - df_ville2["temperature_moyenne"].min(), 1
 )
 
-df_amplitude = pd.DataFrame({
-    "ville": ["Lyon", "Paris"],
-    "amplitude_thermique": [amp_lyon, amp_paris]
+df_amp = pd.DataFrame({
+    "Ville": [ville1, ville2],
+    "Amplitude thermique (°C)": [amp_v1, amp_v2]
 })
 
 fig_amp = px.bar(
-    df_amplitude,
-    x="ville",
-    y="amplitude_thermique",
-    color="ville",
-    text_auto=True,
-    labels={
-        "ville": "Ville",
-        "amplitude_thermique": "Amplitude thermique (°C)"
-    }
+    df_amp,
+    x="Ville",
+    y="Amplitude thermique (°C)",
+    color="Ville",
+    text_auto=True
 )
 
 fig_amp.update_layout(
@@ -204,23 +227,28 @@ fig_amp.update_layout(
 st.plotly_chart(fig_amp, use_container_width=True)
 
 st.info(
-    "L’amplitude thermique annuelle correspond ici à l’écart entre le mois le plus chaud et le mois le plus froid de l’année."
+    "L’amplitude thermique correspond à l’écart entre le mois le plus chaud et le mois le plus froid de l’année."
 )
 
-# =====================
-# BLOC 4 — LECTURE SYNTHETIQUE
-# =====================
-st.subheader("📝 Lecture synthétique")
 
-ville_plus_chaude = "Lyon" if temp_moy_lyon > temp_moy_paris else "Paris"
-ville_plus_pluvieuse = "Lyon" if precip_total_lyon > precip_total_paris else "Paris"
-ville_plus_contrastée = "Lyon" if amp_lyon > amp_paris else "Paris"
+# =====================
+# LECTURE SYNTHÉTIQUE
+# =====================
+st.subheader("Lecture synthétique")
+
+ville_chaude = ville1 if temp_moy_v1 > temp_moy_v2 else ville2
+ville_pluvieuse = ville1 if precip_v1 > precip_v2 else ville2
+ville_contrastee = ville1 if amp_v1 > amp_v2 else ville2
+
+ecart_temp = round(abs(temp_moy_v1 - temp_moy_v2), 1)
+ecart_pluie = abs(precip_v1 - precip_v2)
+ecart_amp = round(abs(amp_v1 - amp_v2), 1)
 
 st.markdown(
     f"""
-- **{ville_plus_chaude}** est légèrement plus chaude en moyenne sur l’année.
-- **{ville_plus_pluvieuse}** enregistre un cumul annuel de précipitations plus élevé.
-- **{ville_plus_contrastée}** présente l’amplitude thermique annuelle la plus marquée.
-- Les deux villes gardent toutefois une saisonnalité proche, avec des températures basses en hiver et un pic en été.
+- **{ville_chaude}** est la ville la plus chaude en moyenne, avec un écart d’environ **{ecart_temp} °C**.
+- **{ville_pluvieuse}** présente le cumul annuel de précipitations le plus élevé, avec un écart d’environ **{ecart_pluie} mm**.
+- **{ville_contrastee}** possède l’amplitude thermique la plus marquée, avec un écart d’environ **{ecart_amp} °C**.
+- Les courbes permettent d’observer la saisonnalité des températures et des précipitations sur l’année 2024.
 """
 )

@@ -1,109 +1,142 @@
+# === IMPORT DES LIBRAIRIES ===
+# streamlit : interface web
+# pandas : manipulation des données
+# plotly : visualisation interactive
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+
+# =====================
+# CONFIGURATION PAGE
+# =====================
 st.set_page_config(page_title="Emploi", layout="wide")
 
 st.title("💼 Analyse de l'emploi")
+
 
 # =====================
 # DATA
 # =====================
 df = pd.read_parquet("data/processed/fact_emploi.parquet")
 
-df_lyon = df[df["ville"] == "Lyon"].copy()
-df_paris = df[df["ville"] == "Paris"].copy()
 
-# version sans "Autres" pour l'interprétation
-df_lyon_sans_autres = df_lyon[df_lyon["secteur"] != "Autres"].copy()
-df_paris_sans_autres = df_paris[df_paris["secteur"] != "Autres"].copy()
+# =====================
+# SÉLECTION DES VILLES
+# =====================
+villes = sorted(df["nom_commune"].dropna().unique())
+
+col_select1, col_select2 = st.columns(2)
+
+with col_select1:
+    ville1 = st.selectbox("Ville 1", villes, index=0)
+
+with col_select2:
+    ville2 = st.selectbox("Ville 2", villes, index=1)
+
+df = df[df["nom_commune"].isin([ville1, ville2])].copy()
+
+df_v1 = df[df["nom_commune"] == ville1].copy()
+df_v2 = df[df["nom_commune"] == ville2].copy()
+
+df_v1_sans = df_v1[df_v1["secteur"] != "Autres"].copy()
+df_v2_sans = df_v2[df_v2["secteur"] != "Autres"].copy()
+
+st.markdown(f"### Analyse comparative : **{ville1}** vs **{ville2}**")
+
 
 # =====================
 # KPI
 # =====================
-st.subheader("📌 Indicateurs emploi clés")
+st.subheader("Indicateurs emploi clés")
 
-total_lyon = int(round(df_lyon["nb"].sum(), 0))
-total_paris = int(round(df_paris["nb"].sum(), 0))
+total_v1 = int(df_v1["nb"].sum())
+total_v2 = int(df_v2["nb"].sum())
 
-top_lyon_row = df_lyon_sans_autres.loc[df_lyon_sans_autres["nb"].idxmax()]
-top_paris_row = df_paris_sans_autres.loc[df_paris_sans_autres["nb"].idxmax()]
+top_v1_row = df_v1_sans.loc[df_v1_sans["nb"].idxmax()]
+top_v2_row = df_v2_sans.loc[df_v2_sans["nb"].idxmax()]
 
-top_lyon = top_lyon_row["secteur"]
-top_paris = top_paris_row["secteur"]
+top_v1 = top_v1_row["secteur"]
+top_v2 = top_v2_row["secteur"]
 
-top_lyon_nb = int(round(top_lyon_row["nb"], 0))
-top_paris_nb = int(round(top_paris_row["nb"], 0))
+top_v1_nb = int(top_v1_row["nb"])
+top_v2_nb = int(top_v2_row["nb"])
 
-nb_secteurs_lyon = int(df_lyon["secteur"].nunique())
-nb_secteurs_paris = int(df_paris["secteur"].nunique())
+nb_sec_v1 = int(df_v1["secteur"].nunique())
+nb_sec_v2 = int(df_v2["secteur"].nunique())
 
+
+# === AFFICHAGE KPI ===
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("### 🏙️ Lyon")
-    kpi1, kpi2, kpi3 = st.columns(3)
-    kpi1.metric(
-        "Emplois estimés",
-        f"{total_lyon:,}",
+    st.markdown(f"#### {ville1}")
+    k1, k2, k3 = st.columns(3)
+
+    k1.metric(
+        "Emplois",
+        f"{total_v1:,}",
         help="Volume d’emplois estimés à partir de la base FLORES 2024."
     )
-    kpi2.metric(
-        "Secteur dominant",
-        top_lyon,
-        delta=f"{top_lyon_nb:,} emplois",
-        help="Secteur représentant le plus grand volume d’emplois, hors catégorie 'Autres'."
+    k2.metric(
+        "Secteur clé",
+        top_v1,
+        delta=f"{top_v1_nb:,} emplois",
+        help="Secteur principal hors catégorie 'Autres'."
     )
-    kpi3.metric(
-        "Nombre de secteurs",
-        nb_secteurs_lyon,
+    k3.metric(
+        "Secteurs",
+        nb_sec_v1,
         help="Nombre de macro-secteurs présents dans la ville."
     )
 
 with col2:
-    st.markdown("### 🏙️ Paris")
-    kpi1, kpi2, kpi3 = st.columns(3)
-    kpi1.metric(
-        "Emplois estimés",
-        f"{total_paris:,}",
+    st.markdown(f"#### {ville2}")
+    k1, k2, k3 = st.columns(3)
+
+    k1.metric(
+        "Emplois",
+        f"{total_v2:,}",
         help="Volume d’emplois estimés à partir de la base FLORES 2024."
     )
-    kpi2.metric(
-        "Secteur dominant",
-        top_paris,
-        delta=f"{top_paris_nb:,} emplois",
-        help="Secteur représentant le plus grand volume d’emplois, hors catégorie 'Autres'."
+    k2.metric(
+        "Secteur clé",
+        top_v2,
+        delta=f"{top_v2_nb:,} emplois",
+        help="Secteur principal hors catégorie 'Autres'."
     )
-    kpi3.metric(
-        "Nombre de secteurs",
-        nb_secteurs_paris,
+    k3.metric(
+        "Secteurs",
+        nb_sec_v2,
         help="Nombre de macro-secteurs présents dans la ville."
     )
 
+
 # =====================
-# BLOC 2 — EMPLOIS PAR SECTEUR
+# EMPLOIS PAR SECTEUR
 # =====================
-st.subheader("📊 Nombre d’emplois par secteur")
+st.subheader("Nombre d’emplois par secteur")
 
 pivot = df.pivot_table(
     index="secteur",
-    columns="ville",
+    columns="nom_commune",
     values="nb",
     aggfunc="sum"
 ).fillna(0)
 
-pivot = pivot.sort_values(by="Paris", ascending=True)
+pivot = pivot.sort_values(by=ville2, ascending=True)
 
 fig_bar = px.bar(
     pivot,
-    x=["Lyon", "Paris"],
+    x=[ville1, ville2],
     y=pivot.index,
     orientation="h",
     barmode="group",
     text_auto=".0f",
     labels={
         "value": "Nombre d’emplois",
-        "secteur": "Secteur"
+        "secteur": "Secteur",
+        "variable": "Ville"
     }
 )
 
@@ -121,65 +154,96 @@ fig_bar.update_layout(
 
 st.plotly_chart(fig_bar, use_container_width=True)
 
+
 # =====================
-# BLOC 3 — RÉPARTITION SECTORIELLE
+# RÉPARTITION %
 # =====================
-st.subheader("📈 Répartition sectorielle de l’emploi")
+st.subheader("Répartition sectorielle de l’emploi")
 
 df_percent = df.copy()
-df_percent["part"] = df_percent.groupby("ville")["nb"].transform(lambda x: x / x.sum() * 100)
+df_percent["part"] = df_percent.groupby("nom_commune")["nb"].transform(
+    lambda x: x / x.sum() * 100
+)
 
 fig_part = px.bar(
     df_percent,
-    x="secteur",
-    y="part",
-    color="ville",
+    x="part",
+    y="secteur",
+    color="nom_commune",
+    orientation="h",
     barmode="group",
     text_auto=".1f",
     labels={
-        "secteur": "Secteur",
         "part": "Part de l’emploi (%)",
-        "ville": "Ville"
+        "secteur": "Secteur",
+        "nom_commune": "Ville"
     }
 )
 
+fig_part.update_traces(
+    textposition="outside",
+    cliponaxis=False
+)
+
 fig_part.update_layout(
-    xaxis_title="Secteur",
-    yaxis_title="Part de l’emploi (%)",
+    xaxis_title="Part de l’emploi (%)",
+    yaxis_title="Secteur",
     legend_title="Ville",
-    margin=dict(l=20, r=20, t=20, b=20)
+    margin=dict(l=20, r=120, t=20, b=20)
 )
 
 st.plotly_chart(fig_part, use_container_width=True)
 
-# =====================
-# BLOC 4 — TABLEAU
-# =====================
-st.subheader("📋 Détail des emplois par secteur")
 
-df_table = df.sort_values(["ville", "nb"], ascending=[True, False]).copy()
+# =====================
+# TABLEAU
+# =====================
+st.subheader("Détail des emplois")
+
+df_table = df.sort_values(["nom_commune", "nb"], ascending=[True, False]).copy()
 df_table["nb"] = df_table["nb"].round(0).astype(int)
 
-st.dataframe(
-    df_table[["ville", "code_commune", "secteur", "nb"]],
-    use_container_width=True
-)
+df_table = df_table[[
+    "nom_commune",
+    "code_commune",
+    "secteur",
+    "nb"
+]].rename(columns={
+    "nom_commune": "Ville",
+    "code_commune": "Code commune",
+    "secteur": "Secteur",
+    "nb": "Nombre d’emplois"
+})
+
+st.dataframe(df_table, use_container_width=True)
+
 
 # =====================
-# BLOC 5 — LECTURE SYNTHÉTIQUE
+# LECTURE SYNTHÉTIQUE
 # =====================
-st.subheader("📝 Lecture synthétique")
+st.subheader("Lecture synthétique")
 
-ville_plus_emplois = "Lyon" if total_lyon > total_paris else "Paris"
+ville_plus = ville1 if total_v1 > total_v2 else ville2
+ecart = abs(total_v1 - total_v2)
 
-part_top_lyon = round((top_lyon_nb / total_lyon) * 100, 1)
-part_top_paris = round((top_paris_nb / total_paris) * 100, 1)
+part_v1 = round((top_v1_nb / total_v1) * 100, 1)
+part_v2 = round((top_v2_nb / total_v2) * 100, 1)
+
+secteur_commun = top_v1 if top_v1 == top_v2 else None
 
 st.markdown(
     f"""
-- **{ville_plus_emplois}** concentre le volume d’emplois le plus important parmi les deux villes étudiées.
-- À **Lyon**, le secteur dominant hors catégorie résiduelle est **{top_lyon}**, avec environ **{top_lyon_nb:,} emplois**, soit **{part_top_lyon} %** du total estimé.
-- À **Paris**, le secteur dominant hors catégorie résiduelle est **{top_paris}**, avec environ **{top_paris_nb:,} emplois**, soit **{part_top_paris} %** du total estimé.
-- La structure sectorielle des deux villes montre des spécialisations économiques différentes, ce qui enrichit la comparaison globale.
+- **{ville_plus}** concentre le plus d’emplois, avec un écart d’environ **{ecart:,} emplois**.
+- À **{ville1}**, le secteur principal hors catégorie résiduelle est **{top_v1}**, soit **{part_v1} %** des emplois.
+- À **{ville2}**, le secteur principal hors catégorie résiduelle est **{top_v2}**, soit **{part_v2} %** des emplois.
 """
 )
+
+if secteur_commun:
+    st.markdown(
+        f"- Les deux villes partagent un secteur dominant commun : **{secteur_commun}**."
+    )
+else:
+    st.markdown(
+        "- Les deux villes présentent des spécialisations économiques différentes."
+    )
