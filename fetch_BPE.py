@@ -1,56 +1,51 @@
 # === IMPORT DES LIBRAIRIES ===
-# pandas est utilisé pour manipuler les données tabulaires
 import pandas as pd
 
 
-# =====================
-# CHARGEMENT DES DONNÉES BPE
-# =====================
-# On ne charge que les colonnes utiles pour optimiser la mémoire :
-# - DEPCOM : code commune
-# - TYPEQU : type d’équipement
+# === FONCTION D’HARMONISATION DES COMMUNES ===
+def harmoniser_commune(code):
+    code = str(code).zfill(5)
+
+    if code.startswith("751"):
+        return "75056"  # Paris
+    elif code.startswith("132"):
+        return "13055"  # Marseille
+    elif code.startswith("6938"):
+        return "69123"  # Lyon
+    else:
+        return code
+
+
+# === CHARGEMENT DES DONNÉES BPE ===
 cols = ["DEPCOM", "TYPEQU"]
 
 df = pd.read_csv(
     "data/raw/BPE24.csv",
-    sep=";",          # séparateur spécifique au fichier INSEE
-    usecols=cols,     # sélection des colonnes utiles uniquement
-    dtype=str         # lecture en string pour éviter les erreurs de type
+    sep=";",
+    usecols=cols,
+    dtype=str
 )
 
 
-# =====================
-# CHARGEMENT DES COMMUNES ÉLIGIBLES
-# =====================
-# Ce fichier contient :
-# - code_commune
-# - nom_commune
-# - population (> 20k)
+# === CHARGEMENT DES COMMUNES ÉLIGIBLES ===
 df_pop = pd.read_csv(
     "data/processed/population_communes.csv",
     dtype=str
 )
 
-
-# =====================
-# PRÉPARATION DES CODES COMMUNES
-# =====================
-# On harmonise les formats (important pour le merge)
-df["code_commune"] = df["DEPCOM"].str.zfill(5)
 df_pop["code_commune"] = df_pop["code_commune"].str.zfill(5)
 
 
-# =====================
-# FILTRAGE DES COMMUNES
-# =====================
-# On garde uniquement les communes présentes dans le fichier population
+# === PRÉPARATION DES CODES COMMUNES ===
+df["code_commune"] = df["DEPCOM"].str.zfill(5)
+df["code_commune"] = df["code_commune"].apply(harmoniser_commune)
+
+
+# === FILTRAGE DES COMMUNES DE PLUS DE 20 000 HABITANTS ===
 df = df[df["code_commune"].isin(df_pop["code_commune"])].copy()
 
 
-# =====================
-# CRÉATION DES CATÉGORIES D'ÉQUIPEMENTS
-# =====================
-# Le champ TYPEQU contient un code dont la première lettre correspond à une catégorie
+# === CRÉATION DES CATÉGORIES D'ÉQUIPEMENTS ===
 mapping = {
     "A": "sport",
     "B": "culture_loisirs",
@@ -60,16 +55,10 @@ mapping = {
     "F": "transport"
 }
 
-# Extraction de la première lettre puis mapping
 df["categorie"] = df["TYPEQU"].str[0].map(mapping)
 
 
-# =====================
-# AJOUT DES INFORMATIONS COMMUNES
-# =====================
-# On ajoute :
-# - nom_commune
-# - population
+# === AJOUT DES INFORMATIONS COMMUNES ===
 df = df.merge(
     df_pop,
     on="code_commune",
@@ -77,19 +66,11 @@ df = df.merge(
 )
 
 
-# =====================
-# NETTOYAGE DES DONNÉES
-# =====================
-# Suppression des lignes inutilisables
+# === NETTOYAGE DES DONNÉES ===
 df = df.dropna(subset=["categorie", "nom_commune"])
 
 
-# =====================
-# AGRÉGATION DES DONNÉES
-# =====================
-# Objectif : obtenir le nombre d’équipements par :
-# - commune
-# - catégorie
+# === AGRÉGATION DES DONNÉES ===
 df_agg = (
     df.groupby(["code_commune", "nom_commune", "categorie"], as_index=False)
     .size()
@@ -97,17 +78,16 @@ df_agg = (
 )
 
 
-# =====================
-# SAUVEGARDE DES DONNÉES TRAITÉES
-# =====================
+# === SAUVEGARDE ===
 df_agg.to_parquet(
     "data/processed/fact_equipements.parquet",
     index=False
 )
 
 
-# =====================
-# AFFICHAGE DE CONTRÔLE
-# =====================
+# === DEBUG ===
 print(df_agg.head())
 print("Nombre de communes :", df_agg["code_commune"].nunique())
+print("Paris présent :", "Paris" in df_agg["nom_commune"].unique())
+print("Marseille présent :", "Marseille" in df_agg["nom_commune"].unique())
+print("Lyon présent :", "Lyon" in df_agg["nom_commune"].unique())
