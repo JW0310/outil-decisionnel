@@ -16,10 +16,13 @@ st.title("🏙️ Outil de comparaison de villes")
 st.markdown(
 """
 Bienvenue sur cet **outil décisionnel interactif** permettant de comparer **deux villes françaises**
-selon plusieurs dimensions : équipements, météo, logement et emploi.
+selon plusieurs dimensions : équipements, logement et emploi.
 
-L’utilisateur peut sélectionner librement deux villes parmi les communes disponibles de plus de **20 000 habitants**.
-L’objectif est de fournir une lecture **comparative, visuelle et interprétable** afin de faciliter l’analyse territoriale.
+L’utilisateur peut sélectionner deux villes parmi les communes disponibles de plus de **20 000 habitants**.
+Cette sélection est ensuite conservée sur les pages **Comparaison**, **Logement** et **Emploi**.
+
+La page **Météo** dispose d’une sélection indépendante, car les données météorologiques sont disponibles
+sur un périmètre plus restreint.
 """
 )
 
@@ -56,19 +59,35 @@ st.header("🧭 Navigation dans l’application")
 
 st.markdown(
 """
-Utilisez le menu latéral pour accéder aux différentes pages d’analyse :
+Utilisez le menu latéral pour accéder aux différentes pages d’analyse.
 
 ### 📊 Comparaison
 Vue d’ensemble des équipements disponibles dans les deux villes sélectionnées.
 
 ### 🌤️ Météo
-Analyse des températures, des précipitations et de l’amplitude thermique.
+Analyse des températures, des précipitations et de l’amplitude thermique.  
+Cette page possède sa propre sélection de villes.
 
 ### 🏠 Logement
-Analyse du marché immobilier (prix au m², évolution, écarts).
+Analyse du marché immobilier : prix au m², évolution mensuelle et écarts entre les villes.
 
 ### 💼 Emploi
-Analyse de la structure économique (emplois, secteurs, répartition).
+Analyse de la structure économique : emplois, secteurs dominants et spécialisations.
+"""
+)
+
+
+# =====================
+# UTILISATION DES FILTRES
+# =====================
+st.header("🔎 Utilisation des filtres")
+
+st.markdown(
+"""
+Sur les pages **Comparaison**, **Logement** et **Emploi**, les villes sont sélectionnées depuis le menu latéral.
+Une fois choisies, elles restent mémorisées lors du passage d’une page à l’autre.
+
+La page **Météo** fonctionne séparément, car elle repose sur une source API et un ensemble de villes disponible plus limité.
 """
 )
 
@@ -99,10 +118,11 @@ st.header("⚙️ Méthodologie")
 st.markdown(
 """
 - sélection des communes de plus de 20 000 habitants  
-- collecte via open data et API  
-- nettoyage et normalisation  
-- agrégation par commune  
-- export en parquet  
+- collecte via fichiers open data et API  
+- nettoyage et normalisation des données  
+- harmonisation par code commune INSEE  
+- agrégation par commune, mois ou catégorie  
+- export des tables finales au format parquet  
 - visualisation avec Streamlit et Plotly  
 """
 )
@@ -115,10 +135,10 @@ st.header("⚠️ Limites")
 
 st.markdown(
 """
-- données centrées sur 2024  
-- couverture météo limitée  
-- disponibilité variable selon les villes  
-- indicateurs agrégés (tendances)
+- les données sont centrées sur l’année 2024  
+- la couverture météo est limitée à un panel de villes  
+- certaines communes peuvent avoir moins de données selon les sources  
+- les indicateurs sont agrégés et doivent être interprétés comme des tendances
 """
 )
 
@@ -130,11 +150,11 @@ st.header("🚀 Perspectives")
 
 st.markdown(
 """
-- ajouter d’autres villes  
-- créer un score global  
-- enrichir les données  
-- ajouter des filtres  
-- améliorer l’UX
+- élargir la couverture météo  
+- créer un score global de comparaison  
+- ajouter de nouvelles dimensions d’analyse  
+- enrichir les filtres utilisateurs  
+- améliorer l’expérience utilisateur
 """
 )
 

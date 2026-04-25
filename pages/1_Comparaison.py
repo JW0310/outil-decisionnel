@@ -1,11 +1,9 @@
 # === IMPORT DES LIBRAIRIES ===
-# streamlit : création de l’interface web interactive
-# pandas : manipulation des données
-# plotly : création de graphiques interactifs
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from utils import filtre_villes
 
 
 # === CONFIGURATION DE LA PAGE ===
@@ -32,22 +30,25 @@ df["categorie_label"] = df["categorie"].map(labels_categories)
 
 
 # =====================
-# SÉLECTION DES VILLES
+# SÉLECTION GLOBALE DES VILLES
 # =====================
-villes = sorted(df["nom_commune"].dropna().unique())
+code_ville1, code_ville2, ville1, ville2 = filtre_villes()
 
-col_select1, col_select2 = st.columns(2)
 
-with col_select1:
-    ville1 = st.selectbox("Ville 1", villes, index=0)
+# =====================
+# FILTRAGE DES DONNÉES
+# =====================
+df["code_commune"] = df["code_commune"].astype(str).str.zfill(5)
 
-with col_select2:
-    ville2 = st.selectbox("Ville 2", villes, index=1)
+df = df[df["code_commune"].isin([code_ville1, code_ville2])].copy()
 
-df = df[df["nom_commune"].isin([ville1, ville2])].copy()
+df_ville1 = df[df["code_commune"] == code_ville1].copy()
+df_ville2 = df[df["code_commune"] == code_ville2].copy()
 
-df_ville1 = df[df["nom_commune"] == ville1].copy()
-df_ville2 = df[df["nom_commune"] == ville2].copy()
+couleurs_villes = {
+    ville1: "#1f77b4",
+    ville2: "#ff7f0e"
+}
 
 st.markdown(f"### Analyse comparative : **{ville1}** vs **{ville2}**")
 
@@ -114,6 +115,7 @@ fig_bar = px.bar(
     orientation="h",
     barmode="group",
     text_auto=True,
+    color_discrete_map=couleurs_villes,
     labels={
         "value": "Nombre d’équipements",
         "categorie_label": "Catégorie",
@@ -125,7 +127,7 @@ fig_bar.update_layout(
     xaxis_title="Nombre d’équipements",
     yaxis_title="Catégorie",
     legend_title="Ville",
-    margin=dict(l=20, r=40, t=20, b=20)
+    margin=dict(l=20, r=80, t=20, b=20)
 )
 
 fig_bar.update_traces(
@@ -158,7 +160,8 @@ fig_radar.add_trace(go.Scatterpolar(
     theta=categories_closed,
     fill="toself",
     name=ville1,
-    opacity=0.6
+    opacity=0.6,
+    line=dict(color=couleurs_villes[ville1])
 ))
 
 fig_radar.add_trace(go.Scatterpolar(
@@ -166,7 +169,8 @@ fig_radar.add_trace(go.Scatterpolar(
     theta=categories_closed,
     fill="toself",
     name=ville2,
-    opacity=0.45
+    opacity=0.45,
+    line=dict(color=couleurs_villes[ville2])
 ))
 
 fig_radar.update_layout(
@@ -225,6 +229,6 @@ st.markdown(
 - **{ville_plus_equipee}** dispose du plus grand nombre d’équipements, avec un écart d’environ **{ecart_equipements:,} équipements**.
 - À **{ville1}**, la catégorie dominante est **{top_ville1}**.
 - À **{ville2}**, la catégorie dominante est **{top_ville2}**.
-- Le graphique radar permet de comparer rapidement le profil d’équipements des deux villes.
+- Le radar permet de comparer rapidement le profil d’équipements des deux villes sélectionnées.
 """
 )

@@ -1,7 +1,4 @@
 # === IMPORT DES LIBRAIRIES ===
-# streamlit : interface web
-# pandas : manipulation des données
-# plotly : visualisation interactive
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -37,20 +34,28 @@ df = df.sort_values("annee_mois")
 # =====================
 # SÉLECTION DES VILLES
 # =====================
+# Page météo indépendante du filtre global
 villes = sorted(df["nom_commune"].dropna().unique())
 
 col_select1, col_select2 = st.columns(2)
 
 with col_select1:
-    ville1 = st.selectbox("Ville 1", villes, index=0)
+    ville1 = st.selectbox("Ville 1", villes, index=0, key="meteo_ville1")
+
+villes_dispo_2 = [v for v in villes if v != ville1]
 
 with col_select2:
-    ville2 = st.selectbox("Ville 2", villes, index=1)
+    ville2 = st.selectbox("Ville 2", villes_dispo_2, index=0, key="meteo_ville2")
 
 df = df[df["nom_commune"].isin([ville1, ville2])].copy()
 
 df_ville1 = df[df["nom_commune"] == ville1].copy()
 df_ville2 = df[df["nom_commune"] == ville2].copy()
+
+couleurs_villes = {
+    ville1: "#1f77b4",
+    ville2: "#ff7f0e"
+}
 
 st.markdown(f"### Analyse comparative : **{ville1}** vs **{ville2}**")
 
@@ -96,43 +101,17 @@ with col1:
     st.markdown(f"#### {ville1}")
     k1, k2, k3 = st.columns(3)
 
-    k1.metric(
-        "Temp. annuelle",
-        f"{temp_moy_v1} °C",
-        help="Moyenne des températures mensuelles sur l’année 2024."
-    )
-    k2.metric(
-        "Mois le + chaud",
-        mois_v1,
-        delta=f"{temp_v1_max} °C",
-        help="Mois avec la température moyenne mensuelle la plus élevée."
-    )
-    k3.metric(
-        "Pluie annuelle",
-        f"{precip_v1} mm",
-        help="Cumul des précipitations mensuelles sur l’année 2024."
-    )
+    k1.metric("Temp. annuelle", f"{temp_moy_v1} °C")
+    k2.metric("Mois le + chaud", mois_v1, delta=f"{temp_v1_max} °C")
+    k3.metric("Pluie annuelle", f"{precip_v1} mm")
 
 with col2:
     st.markdown(f"#### {ville2}")
     k1, k2, k3 = st.columns(3)
 
-    k1.metric(
-        "Temp. annuelle",
-        f"{temp_moy_v2} °C",
-        help="Moyenne des températures mensuelles sur l’année 2024."
-    )
-    k2.metric(
-        "Mois le + chaud",
-        mois_v2,
-        delta=f"{temp_v2_max} °C",
-        help="Mois avec la température moyenne mensuelle la plus élevée."
-    )
-    k3.metric(
-        "Pluie annuelle",
-        f"{precip_v2} mm",
-        help="Cumul des précipitations mensuelles sur l’année 2024."
-    )
+    k1.metric("Temp. annuelle", f"{temp_moy_v2} °C")
+    k2.metric("Mois le + chaud", mois_v2, delta=f"{temp_v2_max} °C")
+    k3.metric("Pluie annuelle", f"{precip_v2} mm")
 
 
 # =====================
@@ -146,6 +125,7 @@ fig_temp = px.line(
     y="temperature_moyenne",
     color="nom_commune",
     markers=True,
+    color_discrete_map=couleurs_villes,
     labels={
         "annee_mois": "Mois",
         "temperature_moyenne": "Température moyenne (°C)",
@@ -175,6 +155,7 @@ fig_precip = px.bar(
     color="nom_commune",
     text_auto=True,
     barmode="group",
+    color_discrete_map=couleurs_villes,
     labels={
         "annee_mois": "Mois",
         "precipitations": "Précipitations (mm)",
@@ -214,7 +195,8 @@ fig_amp = px.bar(
     x="Ville",
     y="Amplitude thermique (°C)",
     color="Ville",
-    text_auto=True
+    text_auto=True,
+    color_discrete_map=couleurs_villes
 )
 
 fig_amp.update_layout(

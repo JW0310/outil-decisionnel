@@ -1,10 +1,8 @@
 # === IMPORT DES LIBRAIRIES ===
-# streamlit : interface web
-# pandas : manipulation des données
-# plotly : visualisation interactive
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from utils import filtre_villes
 
 
 # =====================
@@ -22,25 +20,28 @@ df = pd.read_parquet("data/processed/fact_emploi.parquet")
 
 
 # =====================
-# SÉLECTION DES VILLES
+# SÉLECTION GLOBALE DES VILLES
 # =====================
-villes = sorted(df["nom_commune"].dropna().unique())
+code_ville1, code_ville2, ville1, ville2 = filtre_villes()
 
-col_select1, col_select2 = st.columns(2)
 
-with col_select1:
-    ville1 = st.selectbox("Ville 1", villes, index=0)
+# =====================
+# FILTRAGE DES DONNÉES
+# =====================
+df["code_commune"] = df["code_commune"].astype(str).str.zfill(5)
 
-with col_select2:
-    ville2 = st.selectbox("Ville 2", villes, index=1)
+df = df[df["code_commune"].isin([code_ville1, code_ville2])].copy()
 
-df = df[df["nom_commune"].isin([ville1, ville2])].copy()
-
-df_v1 = df[df["nom_commune"] == ville1].copy()
-df_v2 = df[df["nom_commune"] == ville2].copy()
+df_v1 = df[df["code_commune"] == code_ville1].copy()
+df_v2 = df[df["code_commune"] == code_ville2].copy()
 
 df_v1_sans = df_v1[df_v1["secteur"] != "Autres"].copy()
 df_v2_sans = df_v2[df_v2["secteur"] != "Autres"].copy()
+
+couleurs_villes = {
+    ville1: "#1f77b4",
+    ville2: "#ff7f0e"
+}
 
 st.markdown(f"### Analyse comparative : **{ville1}** vs **{ville2}**")
 
@@ -133,6 +134,7 @@ fig_bar = px.bar(
     orientation="h",
     barmode="group",
     text_auto=".0f",
+    color_discrete_map=couleurs_villes,
     labels={
         "value": "Nombre d’emplois",
         "secteur": "Secteur",
@@ -156,43 +158,51 @@ st.plotly_chart(fig_bar, use_container_width=True)
 
 
 # =====================
-# RÉPARTITION %
+# ÉCART DE SPÉCIALISATION
 # =====================
-st.subheader("Répartition sectorielle de l’emploi")
+st.subheader("Écart de spécialisation sectorielle")
 
 df_percent = df.copy()
 df_percent["part"] = df_percent.groupby("nom_commune")["nb"].transform(
     lambda x: x / x.sum() * 100
 )
 
-fig_part = px.bar(
-    df_percent,
-    x="part",
+pivot_part = df_percent.pivot_table(
+    index="secteur",
+    columns="nom_commune",
+    values="part",
+    aggfunc="sum"
+).fillna(0)
+
+pivot_part["ecart"] = pivot_part[ville2] - pivot_part[ville1]
+
+pivot_part = pivot_part.reset_index().sort_values("ecart")
+
+fig_ecart = px.bar(
+    pivot_part,
+    x="ecart",
     y="secteur",
-    color="nom_commune",
     orientation="h",
-    barmode="group",
     text_auto=".1f",
     labels={
-        "part": "Part de l’emploi (%)",
-        "secteur": "Secteur",
-        "nom_commune": "Ville"
+        "ecart": f"Écart en points de % ({ville2} - {ville1})",
+        "secteur": "Secteur"
     }
 )
 
-fig_part.update_traces(
-    textposition="outside",
-    cliponaxis=False
-)
-
-fig_part.update_layout(
-    xaxis_title="Part de l’emploi (%)",
+fig_ecart.update_layout(
+    xaxis_title=f"Écart en points de % ({ville2} - {ville1})",
     yaxis_title="Secteur",
-    legend_title="Ville",
+    showlegend=False,
     margin=dict(l=20, r=120, t=20, b=20)
 )
 
-st.plotly_chart(fig_part, use_container_width=True)
+st.plotly_chart(fig_ecart, use_container_width=True)
+
+st.info(
+    f"Un écart positif signifie que le secteur est proportionnellement plus représenté à {ville2}. "
+    f"Un écart négatif signifie qu’il est proportionnellement plus représenté à {ville1}."
+)
 
 
 # =====================
@@ -224,18 +234,22 @@ st.dataframe(df_table, use_container_width=True)
 st.subheader("Lecture synthétique")
 
 ville_plus = ville1 if total_v1 > total_v2 else ville2
-ecart = abs(total_v1 - total_v2)
+ecart_total = abs(total_v1 - total_v2)
 
 part_v1 = round((top_v1_nb / total_v1) * 100, 1)
 part_v2 = round((top_v2_nb / total_v2) * 100, 1)
 
 secteur_commun = top_v1 if top_v1 == top_v2 else None
 
+secteur_plus_marque = pivot_part.loc[pivot_part["ecart"].abs().idxmax(), "secteur"]
+ecart_plus_marque = round(pivot_part["ecart"].abs().max(), 1)
+
 st.markdown(
     f"""
-- **{ville_plus}** concentre le plus d’emplois, avec un écart d’environ **{ecart:,} emplois**.
+- **{ville_plus}** concentre le plus d’emplois, avec un écart d’environ **{ecart_total:,} emplois**.
 - À **{ville1}**, le secteur principal hors catégorie résiduelle est **{top_v1}**, soit **{part_v1} %** des emplois.
 - À **{ville2}**, le secteur principal hors catégorie résiduelle est **{top_v2}**, soit **{part_v2} %** des emplois.
+- L’écart de spécialisation le plus marqué concerne le secteur **{secteur_plus_marque}**, avec environ **{ecart_plus_marque} points** d’écart.
 """
 )
 
